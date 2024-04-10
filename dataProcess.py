@@ -25,4 +25,7 @@ def dataToTensorHourly(path, missingThreshold=0.1, columnToDelete=['wind_dir', '
     return torch.tensor(df.values)
 
 if __name__ == "__main__":
-    print(dataToTensorHourly(".\Raw data\weatherstats_toronto_hourly.csv", missingThreshold=.2).shape)
+    data = dataToTensorHourly(".\Raw data\weatherstats_toronto_hourly.csv", missingThreshold=.2)
+    print(data)
+    print(data.shape)
+    print(data[0])
