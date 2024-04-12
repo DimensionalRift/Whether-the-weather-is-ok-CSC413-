@@ -93,17 +93,24 @@ def generateData(hourly_path, daily_path, start, end, batch_size=1, shuffle=Fals
     :param bool shuffle: Whether or not to shuffle the data within the 3 datasets (doesnt shuffle between train, val, and test)
     """
     data = dataSet(hourly_path, daily_path, start, end)
-    train = data[:math.floor(len(data) * .6)]
-    validation = data[math.floor(len(data) * .6) + 1 : math.floor(len(data) * .8)]
-    test = data[math.floor(len(data) * .8 + 1) :]
+    # We train on older data as we cant 'train on the future'
+    train = data[math.floor(len(data) * .4) + 1:]
+    # Therefore we validate on the newer data
+    validation = data[math.floor(len(data) * .2) + 1 : math.floor(len(data) * .4)]
+    test = data[:math.floor(len(data) * .2)]
     return{"train": DataLoader(train, batch_size=batch_size, shuffle=shuffle), "validation" : DataLoader(validation, shuffle=shuffle), "test" : DataLoader(test, shuffle=shuffle)}
 
 if __name__ == "__main__":
     # Example of how to generate dataloaders
-    start = datetime(2021, 4, 13).date()
+    # Recommended dates for datasets:
+    # 100_day: start=(2024, 1, 3) | end=(2024, 4, 10)
+    # three_year: start=(2021, 4, 13) | end=(2024, 4, 10)
+    # ten_year: start=(2014, 4, 16) | end=(2024, 4, 10)
+
+    start = datetime(2014, 4, 16).date()
     end = datetime(2024, 4, 10).date()
-    hourly_path ='.\\Raw data\\three_year\\weatherstats_toronto_hourly.csv'
-    daily_path =  '.\\Raw data\\three_year\\weatherstats_toronto_daily.csv'
+    hourly_path ='.\\Raw data\\ten_year\\weatherstats_toronto_hourly.csv'
+    daily_path =  '.\\Raw data\\ten_year\\weatherstats_toronto_daily.csv'
 
     loaders = generateData(hourly_path, daily_path, start, end, 10, False)
     print(loaders)
