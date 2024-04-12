@@ -80,19 +80,31 @@ class dataSet(Dataset):
     
     def __getitem__(self, idx):
         return self.data[idx], self.targets[idx]
+    
+def generateData(hourly_path, daily_path, start, end, batch_size=1, shuffle=False) -> dict:
+    """
+    Generates dataloaders based on given data
 
-if __name__ == "__main__":
-    # Set the start and end times based on your csv files
-    start1 = datetime(2021, 4, 13).date()
-    end2 = datetime(2024, 4, 10).date()
-
-    # Generate a dataset
-    data = dataSet('.\\Raw data\\three_year\\weatherstats_toronto_hourly.csv', ".\\Raw data\\three_year\\weatherstats_toronto_daily.csv", start1, end2)
-
-    # Set up a 60/20/20 train val test split
+    :param str hourly_path: The path to an hourly data csv file
+    :param str daily_path: The path to an daily data csv file
+    :param datetime.date start: The first day to collect data from
+    :param datetime.date end: The last day to collect data from
+    :param int batch_size: The batch size of the training data
+    :param bool shuffle: Whether or not to shuffle the data within the 3 datasets (doesnt shuffle between train, val, and test)
+    """
+    data = dataSet(hourly_path, daily_path, start, end)
     train = data[:math.floor(len(data) * .6)]
     validation = data[math.floor(len(data) * .6) + 1 : math.floor(len(data) * .8)]
     test = data[math.floor(len(data) * .8 + 1) :]
+    return{"train": DataLoader(train, batch_size=batch_size, shuffle=shuffle), "validation" : DataLoader(validation, shuffle=shuffle), "test" : DataLoader(test, shuffle=shuffle)}
 
-    # Example dataloader call
-    train_dataloader = DataLoader(train, batch_size=10)
+if __name__ == "__main__":
+    # Example of how to generate dataloaders
+    start = datetime(2021, 4, 13).date()
+    end = datetime(2024, 4, 10).date()
+    hourly_path ='.\\Raw data\\three_year\\weatherstats_toronto_hourly.csv'
+    daily_path =  '.\\Raw data\\three_year\\weatherstats_toronto_daily.csv'
+
+    loaders = generateData(hourly_path, daily_path, start, end, 10, False)
+    print(loaders)
+
