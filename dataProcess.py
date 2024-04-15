@@ -57,7 +57,7 @@ def dataToTensorHourly(path, separateByDay=True, missingThreshold=0.1, columnToD
     df = df.drop(labels='day_since_beginning', axis=1)
     return [torch.tensor(df.to_numpy().astype(float))]
 
-def dailyTargets(path, target='avg_temperature', start=None, end=datetime.now().date()):
+def dailyTargets(path, target='avg_temperature', start=None, end=datetime.now().date(), round=False):
     df = pd.read_csv(path)
     if start is None:
         start = datetime.strptime(df.iloc[-1]['date'], '%Y-%m-%d')
@@ -66,20 +66,42 @@ def dailyTargets(path, target='avg_temperature', start=None, end=datetime.now().
         date = datetime.strptime(row['date'], "%Y-%m-%d").date()
         if date > end or date < start:
             df = df.drop(index)
+    if round:
+        return(torch.tensor(df[target].round().to_numpy().astype(float)))
     return(torch.tensor(df[target].to_numpy().astype(float)))
 
 class dataSet(Dataset):
-    def __init__(self, hourly_path, daily_path, start, end):
+    def __init__(self, hourly_path, daily_path, start, end, round=False):
         data_end = (datetime.combine(end, datetime.min.time()) - timedelta(1)).date()
         target_start = (datetime.combine(start, datetime.min.time()) + timedelta(1)).date()
         self.data = dataToTensorHourly(hourly_path, start=start, end=data_end)
-        self.targets = dailyTargets(daily_path, start=target_start, end=end)
+        self.targets = dailyTargets(daily_path, start=target_start, end=end, round=round)
         
     def __len__(self):
         return self.targets.shape[0]
     
     def __getitem__(self, idx):
         return self.data[idx], self.targets[idx]
+    
+def generateData(hourly_path, daily_path, start, end, batch_size=1, shuffle=False, round=False) -> dict:
+    """
+    Generates dataloaders based on given data
+
+    :param str hourly_path: The path to an hourly data csv file
+    :param str daily_path: The path to an daily data csv file
+    :param datetime.date start: The first day to collect data from
+    :param datetime.date end: The last day to collect data from
+    :param int batch_size: The batch size of the training data
+    :param bool shuffle: Whether or not to shuffle the data within the 3 datasets (doesnt shuffle between train, val, and test)
+    :param bool round: Round targets to nearest degree
+    """
+    data = dataSet(hourly_path, daily_path, start, end, round)
+    # We train on older data as we cant 'train on the future'
+    train = data[math.floor(len(data) * .4) + 1:]
+    # Therefore we validate on the newer data
+    validation = data[math.floor(len(data) * .2) + 1 : math.floor(len(data) * .4)]
+    test = data[:math.floor(len(data) * .2)]
+    return{"train": DataLoader(train, batch_size=batch_size, shuffle=shuffle), "validation" : DataLoader(validation, shuffle=shuffle), "test" : DataLoader(test, shuffle=shuffle)}
 
 if __name__ == "__main__":
     # Set the start and end times based on your csv files
