@@ -3,7 +3,7 @@ import torch
 import math
 from torch.nn.utils.rnn import pad_sequence
 from datetime import datetime, timedelta
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 
 
 def dataToTensorHourly(path, separateByDay=True, missingThreshold=0.1, columnToDelete=['wind_dir', 'unixtime'], start=None, end=(datetime.now().date())):
@@ -76,13 +76,20 @@ class dataSet(Dataset):
         target_start = (datetime.combine(start, datetime.min.time()) + timedelta(1)).date()
         self.data = dataToTensorHourly(hourly_path, start=start, end=data_end)
         self.targets = dailyTargets(daily_path, start=target_start, end=end, round=round)
-        
+        i = 0
+        while i < len(self.data):
+            if len(self.data[i]) != 24:
+                self.data.pop(i)
+                self.targets = torch.cat([self.targets[0:i], self.targets[i+1:]])
+                i = i - 1
+            i = i + 1
     def __len__(self):
         return self.targets.shape[0]
     
     def __getitem__(self, idx):
         return self.data[idx], self.targets[idx]
-    
+
+
 def generateData(hourly_path, daily_path, start, end, batch_size=1, shuffle=False, round=False) -> dict:
     """
     Generates dataloaders based on given data
@@ -97,11 +104,12 @@ def generateData(hourly_path, daily_path, start, end, batch_size=1, shuffle=Fals
     """
     data = dataSet(hourly_path, daily_path, start, end, round)
     # We train on older data as we cant 'train on the future'
-    train = data[math.floor(len(data) * .4) + 1:]
+    train = Subset(data, range(math.floor(len(data) * .4) + 1, len(data)))
     # Therefore we validate on the newer data
-    validation = data[math.floor(len(data) * .2) + 1 : math.floor(len(data) * .4)]
-    test = data[:math.floor(len(data) * .2)]
-    return{"train": DataLoader(train, batch_size=batch_size, shuffle=shuffle), "validation" : DataLoader(validation, shuffle=shuffle), "test" : DataLoader(test, shuffle=shuffle)}
+    validation = Subset(data, range(math.floor(len(data) * .2) + 1, math.floor(len(data) * .4)))
+    test = Subset(data, range(0, math.floor(len(data) * .2)))
+    # print(len(train))
+    return{"train": DataLoader(train, batch_size=batch_size, shuffle=shuffle), "validation" : DataLoader(validation, shuffle=shuffle, batch_size=batch_size), "test" : DataLoader(test, shuffle=shuffle, batch_size=batch_size)}
 
 if __name__ == "__main__":
     # Example of how to generate dataloaders
@@ -116,5 +124,4 @@ if __name__ == "__main__":
     daily_path =  '.\\Raw data\\ten_year\\weatherstats_toronto_daily.csv'
 
     loaders = generateData(hourly_path, daily_path, start, end, 10, False)
-    print(loaders)
 
