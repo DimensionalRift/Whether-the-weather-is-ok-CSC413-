@@ -8,7 +8,7 @@ from torch.utils.data import Dataset, DataLoader
 
 def dataToTensorHourly(path, separateByDay=True, missingThreshold=0.1, columnToDelete=['wind_dir', 'unixtime'], start=None, end=(datetime.now().date())):
     """
-    Takes the relative path to an hourly weather csv file and returns a tensor
+    Takes the relative path to an hourly weather csv file and returns a list of tensor(s)
 
     :param str path: The relative path of the hourly weather csv to be parsed
     :param bool separateByDay: Whether or not to output multiple tensors for each day
