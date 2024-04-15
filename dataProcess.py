@@ -8,7 +8,7 @@ from torch.utils.data import Dataset, DataLoader
 
 def dataToTensorHourly(path, separateByDay=True, missingThreshold=0.1, columnToDelete=['wind_dir', 'unixtime'], start=None, end=(datetime.now().date())):
     """
-    Takes the relative path to an hourly weather csv file and returns a tensor
+    Takes the relative path to an hourly weather csv file and returns a list of tensor(s)
 
     :param str path: The relative path of the hourly weather csv to be parsed
     :param bool separateByDay: Whether or not to output multiple tensors for each day
@@ -104,17 +104,17 @@ def generateData(hourly_path, daily_path, start, end, batch_size=1, shuffle=Fals
     return{"train": DataLoader(train, batch_size=batch_size, shuffle=shuffle), "validation" : DataLoader(validation, shuffle=shuffle), "test" : DataLoader(test, shuffle=shuffle)}
 
 if __name__ == "__main__":
-    # Set the start and end times based on your csv files
-    start1 = datetime(2021, 4, 13).date()
-    end2 = datetime(2024, 4, 10).date()
+    # Example of how to generate dataloaders
+    # Recommended dates for datasets:
+    # 100_day: start=(2024, 1, 3) | end=(2024, 4, 10)
+    # three_year: start=(2021, 4, 13) | end=(2024, 4, 10)
+    # ten_year: start=(2014, 4, 16) | end=(2024, 4, 10)
 
-    # Generate a dataset
-    data = dataSet('.\\Raw data\\three_year\\weatherstats_toronto_hourly.csv', ".\\Raw data\\three_year\\weatherstats_toronto_daily.csv", start1, end2)
+    start = datetime(2014, 4, 16).date()
+    end = datetime(2024, 4, 10).date()
+    hourly_path ='.\\Raw data\\ten_year\\weatherstats_toronto_hourly.csv'
+    daily_path =  '.\\Raw data\\ten_year\\weatherstats_toronto_daily.csv'
 
-    # Set up a 60/20/20 train val test split
-    train = data[:math.floor(len(data) * .6)]
-    validation = data[math.floor(len(data) * .6) + 1 : math.floor(len(data) * .8)]
-    test = data[math.floor(len(data) * .8 + 1) :]
+    loaders = generateData(hourly_path, daily_path, start, end, 10, False)
+    print(loaders)
 
-    # Example dataloader call
-    train_dataloader = DataLoader(train, batch_size=10)
