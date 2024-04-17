@@ -44,18 +44,19 @@ def dataToTensorHourly(path, separateByDay=True, missingThreshold=0.1, columnToD
         if df[i].isna().sum() / df.shape[0] > missingThreshold:
             df = df.drop(labels=i, axis=1)
     if missingThreshold > 0:
-        df.interpolate()
-    # print(df)
+        cols = df.columns
+        df[cols] = df[cols].apply(pd.to_numeric, errors='coerce')
+        df.infer_objects(copy=False)
+        df = df.interpolate(axis=1)
     if separateByDay:
         tensors = []
         group = df.groupby('day_since_beginning')
         for _, c in group:
-            # print(_)
             c = c.drop(labels='day_since_beginning', axis=1)
-            tensors.insert(0, torch.tensor(c.to_numpy().astype(float)))
+            tensors.insert(0, torch.tensor(c.to_numpy().astype(float)).to(torch.float32))
         return tensors
     df = df.drop(labels='day_since_beginning', axis=1)
-    return [torch.tensor(df.to_numpy().astype(float))]
+    return [torch.tensor(df.to_numpy().astype(float)).to(torch.float32)]
 
 def dailyTargets(path, target='avg_temperature', start=None, end=datetime.now().date(), round=False):
     df = pd.read_csv(path)
@@ -68,7 +69,7 @@ def dailyTargets(path, target='avg_temperature', start=None, end=datetime.now().
             df = df.drop(index)
     if round:
         return(torch.tensor(df[target].round().to_numpy().astype(float)))
-    return(torch.tensor(df[target].to_numpy().astype(float)))
+    return(torch.tensor(df[target].to_numpy().astype(float)).to(torch.float32))
 
 class dataSet(Dataset):
     def __init__(self, hourly_path, daily_path, start, end, round=False):
@@ -87,7 +88,7 @@ class dataSet(Dataset):
         return self.targets.shape[0]
     
     def __getitem__(self, idx):
-        return self.data[idx], self.targets[idx]
+        return self.data[idx].float(), self.targets[idx].float()
 
 
 def generateData(hourly_path, daily_path, start, end, batch_size=1, shuffle=False, round=False) -> dict:
@@ -110,6 +111,15 @@ def generateData(hourly_path, daily_path, start, end, batch_size=1, shuffle=Fals
     test = Subset(data, range(0, math.floor(len(data) * .2)))
     # print(len(train))
     return{"train": DataLoader(train, batch_size=batch_size, shuffle=shuffle), "validation" : DataLoader(validation, shuffle=shuffle, batch_size=batch_size), "test" : DataLoader(test, shuffle=shuffle, batch_size=batch_size)}
+
+def generateDataNoLoader(hourly_path, daily_path, start, end, round=False):
+    data = dataSet(hourly_path, daily_path, start, end, round)
+    # We train on older data as we cant 'train on the future'
+    train = Subset(data, range(math.floor(len(data) * .4) + 1, len(data)))
+    # Therefore we validate on the newer data
+    validation = Subset(data, range(math.floor(len(data) * .2) + 1, math.floor(len(data) * .4)))
+    test = Subset(data, range(0, math.floor(len(data) * .2)))
+    return{"train": train, "validation": validation, "test": test}
 
 if __name__ == "__main__":
     # Example of how to generate dataloaders
