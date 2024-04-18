@@ -31,7 +31,10 @@ def dataToTensorHourly(path, separateByDay=True, missingThreshold=0.1, columnToD
             try:
                 date = datetime.strptime(row['hour'], '%Y-%m-%d %H:%M:%S EDT')
             except:
-                date = datetime.strptime(row['hour'], '%Y-%m-%d %H:%M:%S EST')
+                try:
+                    date = datetime.strptime(row['hour'], '%Y-%m-%d %H:%M:%S EST')
+                except:
+                    date = datetime.strptime(row['hour'][:-4], '%Y-%m-%d %H:%M:%S')
             if date.date() > end or date.date() < start:
                 df = df.drop(index)
             else:
@@ -72,10 +75,15 @@ def dailyTargets(path, target='avg_temperature', start=None, end=datetime.now().
     return(torch.tensor(df[target].to_numpy().astype(float)).to(torch.float32))
 
 class dataSet(Dataset):
-    def __init__(self, hourly_path, daily_path, start, end, round=False):
+    def __init__(self, hourly_path, daily_path, start, end, round=False, ignore=None):
         data_end = (datetime.combine(end, datetime.min.time()) - timedelta(1)).date()
         target_start = (datetime.combine(start, datetime.min.time()) + timedelta(1)).date()
-        self.data = dataToTensorHourly(hourly_path, start=start, end=data_end)
+        if ignore is not None:
+            ig = ['wind_dir', 'unixtime']
+            ig.extend(ignore)
+            self.data = dataToTensorHourly(hourly_path, start=start, end=data_end, columnToDelete=ig)
+        else:
+            self.data = dataToTensorHourly(hourly_path, start=start, end=data_end)
         self.targets = dailyTargets(daily_path, start=target_start, end=end, round=round)
         i = 0
         while i < len(self.data):
