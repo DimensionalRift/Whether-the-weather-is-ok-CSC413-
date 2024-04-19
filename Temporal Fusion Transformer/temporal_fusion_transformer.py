@@ -185,7 +185,7 @@ def train(training, validation, batch_size=128):
 
 
     print(study.best_trial.params)
-    # {'gradient_clip_val': 0.1438185346794532, 'hidden_size': 127, 'dropout': 0.1637096913221353, 'hidden_continuous_size': 59, 'attention_head_size': 2, 'learning_rate': 0.001929851890416287}
+    #{'gradient_clip_val': 0.18288910107905082, 'hidden_size': 41, 'dropout': 0.2657743937910419, 'hidden_continuous_size': 14, 'attention_head_size': 3, 'learning_rate': 0.026593399882835468}
 
     best_model_path = trainer.checkpoint_callback.best_model_path
     print(best_model_path)
