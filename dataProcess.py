@@ -100,13 +100,15 @@ class dataSetHourlyTargets(Dataset):
             else:
                 self.targets.append(torch.tensor([j[7].item() for j in i]))
             t = t * -1
+
+        i = 0
         if strictHours:
-            for i in range(len(self.inputs)):
-                if i == len(self.targets):
-                    break
+            while i < len(self.inputs):
                 if len(self.inputs[i]) != 24 or len(self.targets[i]) != 24:
                     self.inputs.pop(i)
                     self.targets.pop(i)
+                    i = i - 1
+                i = i + 1
     def __len__(self):
         return len(self.targets)
     def __getitem__(self, idx):
