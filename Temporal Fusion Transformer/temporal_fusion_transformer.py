@@ -72,7 +72,7 @@ def generateTimeSeriesDataset(path, missingThreshold=0.1, columnToDelete=['wind_
     df['group']=0
 
     df['total_hours'] = (df['day_since_beginning'] * 24) + df['hour']
-    df['total_hours'] = pd.to_numeric(df['total_hours'])
+    df['total_hours'] = df['total_hours'].astype(int)
     df = df.sort_values('total_hours')
     
     # Hours
