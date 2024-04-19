@@ -1,7 +1,6 @@
 import pandas as pd
 import torch
 import math
-from torch.nn.utils.rnn import pad_sequence
 from datetime import datetime, timedelta
 from torch.utils.data import Dataset, DataLoader, Subset
 
@@ -83,6 +82,38 @@ def dailyTargets(path, target='avg_temperature', start=None, end=datetime.now().
         return(torch.tensor(df[target].round().to_numpy().astype(float)))
     return(torch.tensor(df[target].to_numpy().astype(float)).to(torch.float32))
 
+class dataSetHourlyTargets(Dataset):
+    def __init__(self, hourly_path, start, end, ignore=None, strictHours=True):
+        if ignore is not None:
+            ig = ['wind_dir', 'unixtime']
+            ig.extend(ignore)
+            self.data = dataToTensorHourly(hourly_path, start=start, end=end, columnToDelete=ig)
+        else:
+            self.data = dataToTensorHourly(hourly_path, start=start, end=end)
+        print(len(self.data))
+        self.inputs = []
+        self.targets = []
+        t = -1
+        for i in self.data:
+            if t < 0:
+                self.inputs.append(i)
+            else:
+                self.targets.append(torch.tensor([j[7].item() for j in i]))
+            t = t * -1
+        if strictHours:
+            for i in range(len(self.inputs)):
+                if i == len(self.targets):
+                    break
+                if len(self.inputs[i]) != 24 or len(self.targets[i]) != 24:
+                    self.inputs.pop(i)
+                    self.targets.pop(i)
+    def __len__(self):
+        return len(self.targets)
+    def __getitem__(self, idx):
+        return self.inputs[idx].float(), self.targets[idx].float()
+
+
+
 class dataSet(Dataset):
     def __init__(self, hourly_path, daily_path, start, end, round=False, ignore=None, strictHours=True):
         """
@@ -138,7 +169,6 @@ def generateData(hourly_path, daily_path, start, end, batch_size=1, shuffle=Fals
     # Therefore we validate on the newer data
     validation = Subset(data, range(math.floor(len(data) * .2) + 1, math.floor(len(data) * .4)))
     test = Subset(data, range(0, math.floor(len(data) * .2)))
-    # print(len(train))
     return{"train": DataLoader(train, batch_size=batch_size, shuffle=shuffle), "validation" : DataLoader(validation, shuffle=shuffle, batch_size=batch_size), "test" : DataLoader(test, shuffle=shuffle, batch_size=batch_size)}
 
 def generateDataNoLoader(hourly_path, daily_path, start, end, round=False):
@@ -159,6 +189,24 @@ def generateDataNoLoader(hourly_path, daily_path, start, end, round=False):
     test = Subset(data, range(0, math.floor(len(data) * .2)))
     return{"train": train, "validation": validation, "test": test}
 
+def generateDataNoLoaderHourlyTargets(hourly_path, start, end):
+    """
+    Generates dataSets based on given data
+
+    :param str hourly_path: The path to an hourly data csv file
+    :param str daily_path: The path to an daily data csv file
+    :param datetime.date start: The first day to collect data from
+    :param datetime.date end: The last day to collect data from
+    :param bool round: Round targets to nearest degree
+    """
+    data = dataSetHourlyTargets(hourly_path, start, end)
+    # We train on older data as we cant 'train on the future'
+    train = Subset(data, range(math.floor(len(data) * .4) + 1, len(data)))
+    # Therefore we validate on the newer data
+    validation = Subset(data, range(math.floor(len(data) * .2) + 1, math.floor(len(data) * .4)))
+    test = Subset(data, range(0, math.floor(len(data) * .2)))
+    return{"train": train, "validation": validation, "test": test}
+
 if __name__ == "__main__":
     # Example of how to generate dataloaders
     # Recommended dates for datasets:
@@ -166,10 +214,12 @@ if __name__ == "__main__":
     # three_year: start=(2021, 4, 13) | end=(2024, 4, 10)
     # ten_year: start=(2014, 4, 16) | end=(2024, 4, 10)
 
-    start = datetime(2014, 4, 16).date()
-    end = datetime(2024, 4, 10).date()
+    start = datetime(2014, 4, 18).date()
+    end = datetime(2024, 4, 9).date()
     hourly_path ='.\\Raw data\\ten_year\\weatherstats_toronto_hourly.csv'
     daily_path =  '.\\Raw data\\ten_year\\weatherstats_toronto_daily.csv'
 
-    loaders = generateData(hourly_path, daily_path, start, end, 10, False)
+    data = generateDataNoLoaderHourlyTargets(hourly_path, start, end)
+    print(data['train'][0])
+    print(len(data['train']))
 
