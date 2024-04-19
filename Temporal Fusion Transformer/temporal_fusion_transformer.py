@@ -1,11 +1,3 @@
-# Imports for temporal fusion transformer
-
-import math
-import os
-import copy
-from pathlib import Path
-import warnings
-
 import pickle
 import lightning.pytorch as pl
 from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor
@@ -14,13 +6,12 @@ import numpy as np
 import pandas as pd
 import torch
 
-from pytorch_forecasting import Baseline, TemporalFusionTransformer, TimeSeriesDataSet
-from pytorch_forecasting.data import GroupNormalizer
-from pytorch_forecasting.metrics import MAE, SMAPE, PoissonLoss, QuantileLoss
+from pytorch_forecasting import TemporalFusionTransformer, TimeSeriesDataSet
+from pytorch_forecasting.metrics import MAE, QuantileLoss
 from pytorch_forecasting.models.temporal_fusion_transformer.tuning import optimize_hyperparameters
 import matplotlib.pyplot as plt
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from lightning.pytorch.tuner import Tuner
 
@@ -28,7 +19,6 @@ start = datetime(2014, 1, 3).date()
 end = datetime(2024, 4, 10).date()
 hourly_path ='.\\Raw data\\ten_year\\weatherstats_toronto_hourly.csv'
 daily_path =  '.\\Raw data\\ten_year\\weatherstats_toronto_daily.csv'
-
 
 def dailyTargets(path, target='avg_temperature', start=None, end=datetime.now().date()):
     df = pd.read_csv(path)
@@ -103,6 +93,7 @@ def generateTimeSeriesDataset(path, missingThreshold=0.1, columnToDelete=['wind_
        'wind_speed', 'relative_humidity', 'dew_point', 'temperature',
        'visibility', 'cloud_cover_8', 'max_air_temp_pst1hr',
        'min_air_temp_pst1hr'],
+    time_varying_known_reals=["total_hours"],
     allow_missing_timesteps=True,
     add_relative_time_idx=True,
     add_target_scales=False,
@@ -129,54 +120,10 @@ def train(training, validation, batch_size=128):
     train_dataloader = generateDataloader(training, True, batch_size)
     val_dataloader =  generateDataloader(validation, False, batch_size)
 
-    # baseline_predictions = Baseline().predict(val_dataloader, return_y=True)
-    # print(MAE()(baseline_predictions.output, baseline_predictions.y))
-
-    # configure network and trainer
-    
-    # trainer = pl.Trainer(
-    #     accelerator="cpu",
-    #     # clipping gradients is a hyperparameter and important to prevent divergance
-    #     # of the gradient for recurrent neural networks
-    #     gradient_clip_val=0.1,
-    # )
-
-
-    # tft = TemporalFusionTransformer.from_dataset(
-    #     training,
-    #     # not meaningful for finding the learning rate but otherwise very important
-    #     learning_rate=0.03,
-    #     hidden_size=8,  # most important hyperparameter apart from learning rate
-    #     # number of attention heads. Set to up to 4 for large datasets
-    #     attention_head_size=1,
-    #     dropout=0.1,  # between 0.1 and 0.3 are good values
-    #     hidden_continuous_size=8,  # set to <= hidden_size
-    #     loss=QuantileLoss(),
-    #     optimizer="Ranger"
-    #     # reduce learning rate if no improvement in validation loss after x epochs
-    #     # reduce_on_plateau_patience=1000,
-    # )
-    # print(f"Number of parameters in network: {tft.size()/1e3:.1f}k")
-
-
-
-
-    # res = Tuner(trainer).lr_find(
-    #     tft,
-    #     train_dataloaders=train_dataloader,
-    #     val_dataloaders=val_dataloader,
-    #     max_lr=10.0,
-    #     min_lr=1e-6,
-    # )
-
-    # print(f"suggested learning rate: {res.suggestion()}")
-    #fig = res.plot(show=True, suggest=True)
-    #fig.show()
-
-    # configure network and trainer
+    # setup trainer and transformer
     early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=1e-4, patience=10, verbose=False, mode="min")
-    lr_logger = LearningRateMonitor()  # log the learning rate
-    logger = TensorBoardLogger("lightning_logs")  # logging results to a tensorboard
+    lr_logger = LearningRateMonitor()  
+    logger = TensorBoardLogger("lightning_logs")  
 
     trainer = pl.Trainer(
         max_epochs=50,
@@ -213,13 +160,12 @@ def train(training, validation, batch_size=128):
 
     # Hyperparam optimizing
 
-    # create study
     study = optimize_hyperparameters(
         train_dataloader,
         val_dataloader,
         model_path="optuna_test",
-        n_trials=1, #200
-        max_epochs=1, #50
+        n_trials=200, #200
+        max_epochs=50, #50
         gradient_clip_val_range=(0.01, 1.0),
         hidden_size_range=(8, 128),
         hidden_continuous_size_range=(8, 128),
@@ -231,18 +177,15 @@ def train(training, validation, batch_size=128):
         use_learning_rate_finder=False,  # use Optuna to find ideal learning rate or use in-built learning rate finder
     )
 
-    # save study results - also we can resume tuning at a later point in time
     with open("test_study.pkl", "wb") as fout:
         pickle.dump(study, fout)
 
-    # show best hyperparameters
+
     print(study.best_trial.params)
     # {'gradient_clip_val': 0.1438185346794532, 'hidden_size': 127, 'dropout': 0.1637096913221353, 'hidden_continuous_size': 59, 'attention_head_size': 2, 'learning_rate': 0.001929851890416287}
 
-    # load the best model according to the validation loss
-    # (given that we use early stopping, this is not necessarily the last epoch)
     best_model_path = trainer.checkpoint_callback.best_model_path
-    
+    print(best_model_path)
     return best_model_path
 
 def genValPrediction(model_path, validation, batch_size=128):
@@ -255,8 +198,6 @@ def genValPrediction(model_path, validation, batch_size=128):
     predictions = best_tft.predict(val_dataloader, return_y=True, trainer_kwargs=dict(accelerator="cpu"))
     print(MAE()(predictions.output, predictions.y))
 
-
-    # raw predictions are a dictionary from which all kind of information including quantiles can be extracted
     raw_predictions = best_tft.predict(val_dataloader, mode="raw", return_x=True)
 
 
@@ -278,8 +219,6 @@ def genPrediction(model_path, dataset, batch_size=128):
     predictions = best_tft.predict(dataloader, return_y=True, trainer_kwargs=dict(accelerator="cpu"))
     print(MAE()(predictions.output, predictions.y))
 
-
-    # raw predictions are a dictionary from which all kind of information including quantiles can be extracted
     raw_predictions = best_tft.predict(dataloader, mode="raw", return_x=True)
 
 
