@@ -50,6 +50,7 @@ def dataToTensorHourly(path, separateByDay=True, missingThreshold=0.1, columnToD
         df[cols] = df[cols].apply(pd.to_numeric, errors='coerce')
         df.infer_objects(copy=False)
         df = df.interpolate(axis=1)
+    print(df.head(5))
     if separateByDay:
         tensors = []
         group = df.groupby('day_since_beginning')
