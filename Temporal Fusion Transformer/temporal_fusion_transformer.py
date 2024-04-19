@@ -60,7 +60,10 @@ def generateTimeSeriesDataset(path, missingThreshold=0.1, columnToDelete=['wind_
         if df[i].isna().sum() / df.shape[0] > missingThreshold:
             df = df.drop(labels=i, axis=1)
     if missingThreshold > 0:
-        df.interpolate()
+        cols = df.columns
+        df[cols] = df[cols].apply(pd.to_numeric, errors='coerce')
+        df.infer_objects(copy=False)
+        df = df.interpolate(axis=1)
     
     # Drop NAs
     df = df.dropna()
