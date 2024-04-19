@@ -102,6 +102,8 @@ class dataSetHourlyTargets(Dataset):
             t = t * -1
 
         i = 0
+        if len(self.targets) < len(self.inputs):
+            self.inputs.pop(-1)
         if strictHours:
             while i < len(self.inputs):
                 if len(self.inputs[i]) != 24 or len(self.targets[i]) != 24:
@@ -113,8 +115,6 @@ class dataSetHourlyTargets(Dataset):
         return len(self.targets)
     def __getitem__(self, idx):
         return self.inputs[idx].float(), self.targets[idx].float()
-
-
 
 class dataSet(Dataset):
     def __init__(self, hourly_path, daily_path, start, end, round=False, ignore=None, strictHours=True):
@@ -222,6 +222,4 @@ if __name__ == "__main__":
     daily_path =  '.\\Raw data\\ten_year\\weatherstats_toronto_daily.csv'
 
     data = generateDataNoLoaderHourlyTargets(hourly_path, start, end)
-    print(data['train'][0])
-    print(len(data['train']))
 
